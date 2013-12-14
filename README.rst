@@ -1,3 +1,11 @@
+Notes
+=====
+
+-  This will never modify files that are already executable
+-  This is better run as root to ensure no errors
+-  Be very careful with what paths you put in configuration and the
+   ``recursive`` option!
+
 Example configuration
 =====================
 
