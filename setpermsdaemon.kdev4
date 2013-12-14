@@ -1,0 +1,4 @@
+[Project]
+Manager=KDevGenericManager
+Name=setpermsdaemon
+VersionControl=kdevgit

@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+
+from osext.filesystem import isfile
+from os.path import dirname, expanduser, isdir, join as path_join
+import argparse
+import os
+import pyinotify
+import signal
+import subprocess as sp
+import sys
+import yaml
+
+from setpermsd.handler import FixPermsHandler
+
+SYSTEM_CONF_FILE = '/etc/setpermsd/conf.yml'
+SYSTEM_PATHS_FILE = '/etc/setpermsd/paths.yml'
+USER_CONF_FILE = expanduser('~/.setpermsd/conf.yml')
+USER_PATHS_FILE = expanduser('~/.setpermsd/paths.yml')
+
+
+class ConfigurationException(Exception):
+    pass
+
+
+def read_yaml_file(conf_file):
+    with open(conf_file) as f:
+        return yaml.load(f.read())
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Debug mode')
+    parser.add_argument('--pid-file', help='PID file path', required=False)
+
+    args = parser.parse_args()
+
+    # Exclusive, take over all other argumentse
+    #parser.add_argument('-c', '--config', help='Configuration path', default=None)
+    #parser.add_argument('-p', '--path-list', help='List of paths to handle')
+
+    #parser.add_argument('-l', '--log-file', help='Log file path', default=None)
+
+    if os.getuid() != 0:
+        conf_file = USER_CONF_FILE
+        paths_file = USER_PATHS_FILE
+        print('Note that not running this as root can result in '
+              'unexpected errors.')
+    else:
+        conf_file = SYSTEM_CONF_FILE
+        paths_file = SYSTEM_PATHS_FILE
+
+    #if not isdir(dirname(conf_file)):
+        #config.write(conf_file, default=True)
+
+    config = read_yaml_file(conf_file)
+    path_rules = read_yaml_file(paths_file)
+    handler = FixPermsHandler()
+    log_handle = None
+
+    try:
+        if config['log_file']:
+            if not isfile(config['log_file']):
+                if not isdir(dirname(config['log_file'])):
+                    os.makedirs(dirname(config['log_file']))
+                with open(config['log_file'], 'a+'):
+                    os.utime(config['log_file'], None)
+                if args.debug:
+                    print('Created log file %s' % (config['log_file']), file=sys.stderr)
+            log_handle = open(config['log_file'], 'a+')
+            if args.debug:
+                print('Opened log file %s' % (config['log_file']), file=sys.stderr)
+    except KeyError as e:
+        if args.debug:
+            print('KeyError from configuration: %s' % (str(e),), file=sys.stderr)
+
+    mask = pyinotify.IN_CREATE | pyinotify.IN_MODIFY
+    wm = pyinotify.WatchManager()
+    notifier = pyinotify.Notifier(wm)
+
+    if args.debug:
+        if not log_handle:
+            log_handle = sys.stdout
+        handler._debug_enabled = True
+
+    handler.set_log_handle(log_handle)
+
+    for (key, values) in path_rules.items():
+        try:
+            recursive = bool(values['recursive'])
+        except:
+            recursive = False
+        try:
+            chown = values['chown']
+            if type(chown) is not dict:
+                raise ConfigurationException('Cannot use chown rules %s' % (
+                    str(chown),
+                ))
+        except:
+            chown = None
+        try:
+            chmod = values['chmod']
+            if type(chown) is not dict:
+                raise ConfigurationException('Cannot use chmod rules %s' % (
+                    str(chown),
+                ))
+            try:
+                chmod['files']
+            except KeyError:
+                chmod['files'] = 0o0644
+            try:
+                chmod['directories']
+            except KeyError:
+                chmod['directories'] = 0o0755
+        except:
+            chmod = {
+                'directories': 0o0755,
+                'files': 0o0644,
+            }
+
+        if args.debug:
+            print('Adding rule: %s, %s, %s, recursive=%s' % (
+                key,
+                chmod,
+                chown,
+                recursive,
+            ), file=sys.stderr)
+        handler.add_path_rule(key, chmod, chown, recursive)
+
+    dirs = list(path_rules.keys())
+    wdd = wm.add_watch(dirs,
+                       mask=mask,
+                       quiet=False,
+                       auto_add=True,
+                       proc_fun=handler,
+                       rec=True)
+
+    if args.pid_file:
+        config['pid_file'] = args.pid_file
+
+    try:
+        if args.debug:
+            print('Starting permission fixer daemon')
+
+        daemonize = lambda: False if args.debug else True
+        notifier.loop(daemonize=daemonize(),
+                      pid_file=config['pid_file'],
+                      stdout=config['log_file'],
+                      stderr=config['log_file'])
+    finally:
+        os.remove(config['pid_file'])
+
+        if log_handle is not None:
+            log_handle.close()
+            if args.debug:
+                # Cleanly exit on Ctrl+C, etc
+                try:
+                    print('Closed log file %s' % (
+                        config['log_file'],
+                    ), file=sys.stderr)
+                except BrokenPipeError:
+                    pass
+
