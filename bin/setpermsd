@@ -149,7 +149,10 @@ if __name__ == '__main__':
                       stdout=config['log_file'],
                       stderr=config['log_file'])
     finally:
-        os.remove(config['pid_file'])
+        try:
+            os.remove(config['pid_file'])
+        except FileNotFoundError:
+            pass
 
         if log_handle is not None:
             log_handle.close()
@@ -161,4 +164,3 @@ if __name__ == '__main__':
                     ), file=sys.stderr)
                 except BrokenPipeError:
                     pass
-

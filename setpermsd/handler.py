@@ -82,7 +82,12 @@ class FixPermsHandler(ProcessEvent):
                 gid,
             ), debug=True)
             self._log_write('chown %s:%s %s' % (name, group, fn,))
-            os.chown(fn, uid, gid)
+            try:
+                os.chown(fn, uid, gid)
+            except FileNotFoundError:
+                return
+            except:
+                self._log_handle('Caught exception during chown: %s' % (str(e),), debug=True)
         else:
             self._log_write('No user/group setting for %s' % (fn,), debug=True)
 
@@ -96,7 +101,12 @@ class FixPermsHandler(ProcessEvent):
 
         self._log_write('Setting mode to %s' % (chmod_rule_str,), debug=True)
         self._log_write('chmod %s %s' % (chmod_rule_str, fn,))
-        os.chmod(fn, chmod_rule)
+        try:
+            os.chmod(fn, chmod_rule)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            self._log_handle('Caught exception during chmod: %s' % (str(e),), debug=True)
 
     def _find_rule(self, dir_name):
         default_return = (False, None, None, False,)
