@@ -10,8 +10,17 @@ class FixPermsHandler(ProcessEvent):
     _log_handle = None
     _debug_enabled = False
 
+    _last_changed = None
+
     def process_default(self, event):
         fn = path_join(event.path, event.name)
+
+        if fn == self._last_changed:
+            self._log_write('Ignoring already touched file %s' % (fn), debug=True)
+            return
+        else:
+            self._log_write('fn = %s (last = %s)' % (fn, self._last_changed), debug=True)
+
         found_rule, path, chown, chmod, recursive = self._find_rule(fn)
         is_file = True
 
@@ -84,6 +93,7 @@ class FixPermsHandler(ProcessEvent):
             self._log_write('chown %s:%s %s' % (name, group, fn,))
             try:
                 os.chown(fn, uid, gid)
+                self._last_changed = fn
             except FileNotFoundError:
                 return
             except:
@@ -103,6 +113,7 @@ class FixPermsHandler(ProcessEvent):
         self._log_write('chmod %s %s' % (chmod_rule_str, fn,))
         try:
             os.chmod(fn, chmod_rule)
+            self._last_changed = fn
         except FileNotFoundError:
             pass
         except Exception as e:
