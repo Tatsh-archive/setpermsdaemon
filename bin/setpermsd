@@ -75,7 +75,7 @@ if __name__ == '__main__':
         if args.debug:
             print('KeyError from configuration: %s' % (str(e),), file=sys.stderr)
 
-    mask = pyinotify.IN_CLOSE_WRITE | pyinotify.IN_CLOSE_NOWRITE
+    mask = pyinotify.IN_CLOSE_WRITE
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm)
 
