@@ -109,6 +109,13 @@ class FixPermsHandler(ProcessEvent):
             self._log_write('Not setting mode rule because file is executable', debug=True)
             return
 
+        current_mode = os.stat(fn).st_mode & 0o777
+        self._log_write('current = %d, new = %d' % (current_mode, chmod_rule,), debug=True)
+
+        if current_mode == chmod_rule:
+            self._log_write('File %s already has correct permissions' % (fn,), debug=True)
+            return
+
         self._log_write('Setting mode to %s' % (chmod_rule_str,), debug=True)
         self._log_write('chmod %s %s' % (chmod_rule_str, fn,))
         try:
