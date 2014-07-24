@@ -1,3 +1,8 @@
+Deprecated
+==========
+
+This utility is deprecated/abandoned in favour of "better planning" (deployment, etc). Please do not use.
+
 Notes
 =====
 

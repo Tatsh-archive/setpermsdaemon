@@ -1,3 +1,7 @@
+# Deprecated
+
+This utility is deprecated/abandoned in favour of "better planning" (deployment, etc). Please do not use.
+
 # Notes
 
 * This will never modify files that are already executable
